@@ -94,37 +94,101 @@ class NoisyLinear(nn.Module):
         return x.sign().mul(x.abs().sqrt())
 
 
-class Network(nn.Module):
-    def __init__(
-            self,
-            in_dim: int,
-            out_dim: int,
-            atom_size: int,
-            support: torch.Tensor
-    ):
+# class Network(nn.Module):
+#     def __init__(
+#             self,
+#             in_dim: int,
+#             out_dim: int,
+#             atom_size: int,
+#             support: torch.Tensor
+#     ):
+#         """Initialization."""
+#         super(Network, self).__init__()
+#
+#         self.support = support
+#         self.out_dim = out_dim
+#         self.atom_size = atom_size
+#
+#         # set common feature layer
+#         self.feature_layer = nn.Sequential(
+#             nn.Linear(in_dim, 128),
+#             nn.ReLU(),
+#         )
+#
+#         # set advantage layer
+#         self.advantage_hidden_layer = NoisyLinear(128, 128)
+#         self.advantage_layer = NoisyLinear(128, out_dim * atom_size)
+#
+#         # set value layer
+#         self.value_hidden_layer = NoisyLinear(128, 128)
+#         self.value_layer = NoisyLinear(128, atom_size)
+#
+#     def forward(self, x: torch.Tensor) -> torch.Tensor:
+#         """Forward method implementation."""
+#         dist = self.dist(x)
+#         q = torch.sum(dist * self.support, dim=2)
+#
+#         return q
+#
+#     def dist(self, x: torch.Tensor) -> torch.Tensor:
+#         """Get distribution for atoms."""
+#         feature = self.feature_layer(x)
+#         adv_hid = F.relu(self.advantage_hidden_layer(feature))
+#         val_hid = F.relu(self.value_hidden_layer(feature))
+#
+#         advantage = self.advantage_layer(adv_hid).view(
+#             -1, self.out_dim, self.atom_size
+#         )
+#         value = self.value_layer(val_hid).view(-1, 1, self.atom_size)
+#         q_atoms = value + advantage - advantage.mean(dim=1, keepdim=True)
+#
+#         dist = F.softmax(q_atoms, dim=-1)
+#         dist = dist.clamp(min=1e-3)  # for avoiding nans
+#
+#         return dist
+#
+#     def reset_noise(self):
+#         """Reset all noisy layers."""
+#         self.advantage_hidden_layer.reset_noise()
+#         self.advantage_layer.reset_noise()
+#         self.value_hidden_layer.reset_noise()
+#         self.value_layer.reset_noise()
+
+
+class CNNNetwork(nn.Module):
+    def __init__(self, grid_size: int, out_dim: int, atom_size: int, support: torch.Tensor):
         """Initialization."""
-        super(Network, self).__init__()
+        super(CNNNetwork, self).__init__()
 
         self.support = support
         self.out_dim = out_dim
         self.atom_size = atom_size
 
-        # set common feature layer
-        self.feature_layer = nn.Sequential(
-            nn.Linear(in_dim, 128),
+        # 定义卷积层
+        self.conv_layer = nn.Sequential(
+            nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1),  # 输入为单通道的矩阵
             nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),  # 64 个输出通道
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2)  # 最大池化
         )
 
-        # set advantage layer
-        self.advantage_hidden_layer = NoisyLinear(128, 128)
-        self.advantage_layer = NoisyLinear(128, out_dim * atom_size)
+        # 计算展平后的维度
+        flattened_size = (grid_size // 2) * (grid_size // 2) * 64
 
-        # set value layer
-        self.value_hidden_layer = NoisyLinear(128, 128)
-        self.value_layer = NoisyLinear(128, atom_size)
+        # 定义全连接层
+        self.fc_advantage_hidden = NoisyLinear(flattened_size, 128)
+        self.fc_advantage = NoisyLinear(128, out_dim * atom_size)
+
+        self.fc_value_hidden = NoisyLinear(flattened_size, 128)
+        self.fc_value = NoisyLinear(128, atom_size)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward method implementation."""
+        # x 形状为 (batch_size, 1, grid_size, grid_size)
+        x = self.conv_layer(x)
+        x = x.view(x.size(0), -1)  # 将卷积层输出展平
+
         dist = self.dist(x)
         q = torch.sum(dist * self.support, dim=2)
 
@@ -132,24 +196,70 @@ class Network(nn.Module):
 
     def dist(self, x: torch.Tensor) -> torch.Tensor:
         """Get distribution for atoms."""
-        feature = self.feature_layer(x)
-        adv_hid = F.relu(self.advantage_hidden_layer(feature))
-        val_hid = F.relu(self.value_hidden_layer(feature))
+        adv_hid = F.relu(self.fc_advantage_hidden(x))
+        val_hid = F.relu(self.fc_value_hidden(x))
 
-        advantage = self.advantage_layer(adv_hid).view(
+        advantage = self.fc_advantage(adv_hid).view(
             -1, self.out_dim, self.atom_size
         )
-        value = self.value_layer(val_hid).view(-1, 1, self.atom_size)
+        value = self.fc_value(val_hid).view(-1, 1, self.atom_size)
         q_atoms = value + advantage - advantage.mean(dim=1, keepdim=True)
 
         dist = F.softmax(q_atoms, dim=-1)
-        dist = dist.clamp(min=1e-3)  # for avoiding nans
+        dist = dist.clamp(min=1e-3)  # 避免出现 nan
 
         return dist
 
     def reset_noise(self):
         """Reset all noisy layers."""
-        self.advantage_hidden_layer.reset_noise()
-        self.advantage_layer.reset_noise()
-        self.value_hidden_layer.reset_noise()
-        self.value_layer.reset_noise()
+        self.fc_advantage_hidden.reset_noise()
+        self.fc_advantage.reset_noise()
+        self.fc_value_hidden.reset_noise()
+        self.fc_value.reset_noise()
+
+
+GRID_SIZE = 8  # 网格大小 (8x8)
+OUT_DIM = 4  # 动作数量 (输出维度)
+ATOM_SIZE = 51  # 分布式Q学习中的原子数量
+V_MIN = -10  # 支持向量的最小值
+V_MAX = 10  # 支持向量的最大值
+
+# 创建支持向量
+support = torch.linspace(V_MIN, V_MAX, ATOM_SIZE)
+
+from Rainbow_DQN_Path_Planning.env import GridmapEnv
+
+def main():
+    # 创建 GridmapEnv 实例
+    env = GridmapEnv(grid_size=(GRID_SIZE, GRID_SIZE), obstacle_ratio=0.2, seed=34)
+    obs, mask = env.reset()  # 重置环境，获取初始观察值和动作掩码
+
+    # 初始化网络
+    model = CNNNetwork(grid_size=GRID_SIZE, out_dim=OUT_DIM, atom_size=ATOM_SIZE, support=support)
+
+    # 将环境的观察值转换为适合模型输入的张量
+    obs_tensor = torch.FloatTensor(obs).unsqueeze(0).unsqueeze(0)  # 添加 batch 维度和 channel 维度
+
+    print(obs_tensor.shape)
+
+    # 使用模型预测 Q 值
+    with torch.no_grad():  # 不需要计算梯度
+        q_values = model(obs_tensor)  # 通过网络获得 Q 值
+        print("Q Values:", q_values)
+
+    # 选择动作（根据 epsilon-greedy 策略）
+    action = q_values.argmax(dim=1).item()  # 选择具有最大 Q 值的动作
+    print("Selected Action:", action)
+
+    # 执行动作并获取下一个状态
+    next_obs, next_mask, reward, done, info = env.step(action)
+    print("Next Observation:"'\n', next_obs)
+    print("Reward:", reward)
+    print("Done:", done)
+    print("Info:", info)
+
+    # 在结束时关闭环境
+    env.close()
+
+if __name__ == "__main__":
+    main()
