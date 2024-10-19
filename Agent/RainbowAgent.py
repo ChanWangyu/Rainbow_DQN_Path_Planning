@@ -6,8 +6,8 @@ import torch
 import torch.optim as optim
 from IPython.display import clear_output
 from torch.nn.utils import clip_grad_norm_
-from Agent.deepRL.ReplayBuffer import ReplayBuffer, PrioritizedReplayBuffer
-from Agent.deepRL.RainbowNet import Network, NoisyLinear
+from deepRL.ReplayBuffer import ReplayBuffer, PrioritizedReplayBuffer
+from deepRL.RainbowNet import CNNNetwork, NoisyLinear
 # from envs.roadmap_env.MultiAgentRoadmapEnv import MultiAgentRoadmapEnv
 from ..env import GridmapEnv
 
@@ -71,7 +71,7 @@ class DQNAgent:
             n_step (int): step number to calculate n-step td error
         """
         obs_dim = env.obs_dim
-        action_dim = env.action_space
+        action_dim = env.action_space.n
 
         self.env = env
         self.batch_size = batch_size
@@ -111,10 +111,10 @@ class DQNAgent:
         ).to(self.device)
 
         # networks: dqn, dqn_target
-        self.dqn = Network(
+        self.dqn = CNNNetwork(
             obs_dim, action_dim, self.atom_size, self.support
         ).to(self.device)
-        self.dqn_target = Network(
+        self.dqn_target = CNNNetwork(
             obs_dim, action_dim, self.atom_size, self.support
         ).to(self.device)
         self.dqn_target.load_state_dict(self.dqn.state_dict())

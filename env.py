@@ -1,6 +1,7 @@
 import gym
 import numpy as np
 import networkx as nx  # 导入 networkx
+from gym import spaces
 
 CURRENT_POSITION = 2
 END_POSITION = 3
@@ -18,8 +19,9 @@ class GridmapEnv(gym.Env):
         self.done = False
 
         # 初始化 action 和 observation 空间
-        self.action_space = gym.spaces.Discrete(4)  # 上、下、左、右
-        self.obs_dim = gym.spaces.Box(low=0, high=3, shape=self.grid_size, dtype=np.float32)
+        self.action_space = spaces.Discrete(4)  # 上、下、左、右
+        self.obs_dim = self.grid_size
+        self.observation_space = spaces.Box(low=0, high=3, shape=self.grid_size, dtype=np.float32)
 
         # 初始化图结构
         self.G = nx.Graph()  # 用于最短路径计算
@@ -86,7 +88,7 @@ class GridmapEnv(gym.Env):
 
         mask = self._get_action_mask()  # 获取动作掩码
 
-        return obs, mask  # 返回观测值和动作掩码
+        return obs, mask
 
     def step(self, action):
         """执行一步操作，并返回状态矩阵、动作掩码、奖励、是否完成和信息。"""
@@ -146,6 +148,9 @@ def main():
     print("Initial Observation:")
     print(obs)
     print("Action Mask:", mask)
+
+    print(env.action_space.n)
+    print(env.obs_dim)
 
     obs, mask, reward, done, info = env.step(1)  # 执行一次动作
     print("Next Observation:")
