@@ -8,7 +8,8 @@ from IPython.display import clear_output
 from torch.nn.utils import clip_grad_norm_
 from Agent.deepRL.ReplayBuffer import ReplayBuffer, PrioritizedReplayBuffer
 from Agent.deepRL.RainbowNet import Network, NoisyLinear
-from envs.roadmap_env.MultiAgentRoadmapEnv import MultiAgentRoadmapEnv
+# from envs.roadmap_env.MultiAgentRoadmapEnv import MultiAgentRoadmapEnv
+from ..env import GridmapEnv
 
 class DQNAgent:
     """DQN Agent interacting with environment.
@@ -35,7 +36,7 @@ class DQNAgent:
 
     def __init__(
             self,
-            env: MultiAgentRoadmapEnv,
+            env: GridmapEnv,
             memory_size: int,
             batch_size: int,
             target_update: int,
@@ -70,7 +71,7 @@ class DQNAgent:
             n_step (int): step number to calculate n-step td error
         """
         obs_dim = env.obs_dim
-        action_dim = env.car_action_space.n
+        action_dim = env.action_space
 
         self.env = env
         self.batch_size = batch_size
