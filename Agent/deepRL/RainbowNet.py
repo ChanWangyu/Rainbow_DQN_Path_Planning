@@ -220,7 +220,7 @@ class CNNNetwork(nn.Module):
         self.fc_value.reset_noise()
 
 
-GRID_SIZE = 8  # 网格大小 (8x8)
+GRID_SIZE = 10  # 网格大小 (8x8)
 OUT_DIM = 4  # 动作数量 (输出维度)
 ATOM_SIZE = 51  # 分布式Q学习中的原子数量
 V_MIN = -10  # 支持向量的最小值
