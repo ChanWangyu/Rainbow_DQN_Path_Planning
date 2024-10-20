@@ -13,15 +13,15 @@ class GridmapEnv(gym.Env):
         self.grid_size = grid_size
         self.obstacle_ratio = obstacle_ratio
         self.start = None
-        self.goal = None
+        self.end = None
         self.cur = None
         self.seed = seed
         self.done = False
 
         # 初始化 action 和 observation 空间
         self.action_space = spaces.Discrete(4)  # 上、下、左、右
-        self.obs_dim = self.grid_size
-        self.observation_space = spaces.Box(low=0, high=3, shape=self.grid_size, dtype=np.float32)
+        self.obs_dim = self.grid_size[0]
+        self.observation_space = spaces.Box(low=0, high=3, shape=(self.obs_dim,), dtype=np.float32)
 
         # 初始化图结构
         self.G = nx.Graph()  # 用于最短路径计算
@@ -60,7 +60,7 @@ class GridmapEnv(gym.Env):
         """确保起点和终点不在障碍物上。"""
         self.start = self._get_random_point(exclude_obstacles=True)
         self.end = self._get_random_point(exclude_obstacles=True)
-        self.state = np.array(self.start)  # 初始化状态
+        self.cur = np.array(self.start)  # 初始化状态
 
     def _get_random_point(self, exclude_obstacles=False):
         """在地图上选取一个随机点。"""
@@ -72,7 +72,7 @@ class GridmapEnv(gym.Env):
     def _get_full_state(self):
         """生成包含当前位置和目标的完整状态矩阵。"""
         full_state = self.grid_map.copy()
-        full_state[self.state[0], self.state[1]] = CURRENT_POSITION  # 标记当前位置
+        full_state[self.cur[0], self.cur[1]] = CURRENT_POSITION  # 标记当前位置
         full_state[self.end[0], self.end[1]] = END_POSITION  # 标记目标位置
         return full_state
 
@@ -92,7 +92,7 @@ class GridmapEnv(gym.Env):
 
     def step(self, action):
         """执行一步操作，并返回状态矩阵、动作掩码、奖励、是否完成和信息。"""
-        x, y = self.state
+        x, y = self.cur
 
         # 根据动作更新位置
         if action == 0 and x > 0 and self.grid_map[x - 1, y] == 0:
@@ -104,7 +104,7 @@ class GridmapEnv(gym.Env):
         elif action == 3 and y < self.grid_size[1] - 1 and self.grid_map[x, y + 1] == 0:
             y += 1  # 向右移动
 
-        self.state = np.array([x, y])
+        self.cur = np.array([x, y])
         done = (x, y) == self.end
 
         # 奖励：到达终点为1，否则根据距离给负奖励
@@ -118,8 +118,8 @@ class GridmapEnv(gym.Env):
         except nx.NetworkXNoPath:
             shortest_path = float('inf')  # 没有路径时设为无穷大
 
-        actual_steps = np.linalg.norm(self.state - np.array(self.start))
-        info = {'path_deviation': actual_steps - shortest_path}
+        actual_steps = np.linalg.norm(self.cur - np.array(self.start))
+        info = actual_steps - shortest_path
 
         if done:
             print("Arrived at the goal!")
@@ -130,7 +130,7 @@ class GridmapEnv(gym.Env):
 
     def _get_action_mask(self):
         """生成动作掩码，避免选择无效动作。"""
-        x, y = self.state
+        x, y = self.cur
         mask = [1, 1, 1, 1]  # 上、下、左、右
         if x == 0 or self.grid_map[x - 1, y] == 1:
             mask[0] = 0  # 无法向上移动
@@ -140,7 +140,9 @@ class GridmapEnv(gym.Env):
             mask[2] = 0  # 无法向左移动
         if y == self.grid_size[1] - 1 or self.grid_map[x, y + 1] == 1:
             mask[3] = 0  # 无法向右移动
-        return mask
+        # return mask
+        return np.array(mask, dtype=np.int32)
+
 
 def main():
     env = GridmapEnv(seed=34)
@@ -152,14 +154,9 @@ def main():
     print(env.action_space.n)
     print(env.obs_dim)
 
-    obs, mask, reward, done, info = env.step(1)  # 执行一次动作
-    print("Next Observation:")
-    print(obs)
-    print("Action Mask:", mask)
-    print("Reward:", reward)
-    print("Done:", done)
-    print("Info:", info)
-
+    next_state, mask, reward, terminated, info = env.step(1)
+    done = terminated
+    print(type(next_state), type(mask), type(reward), type(done), type(info))
 
 if __name__ == '__main__':
     main()

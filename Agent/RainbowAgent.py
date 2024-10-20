@@ -1,4 +1,4 @@
-from typing import Deque, Dict, List, Tuple
+from typing import Deque, Dict, List, Tuple, Any
 import gym
 import matplotlib.pyplot as plt
 import numpy as np
@@ -6,10 +6,10 @@ import torch
 import torch.optim as optim
 from IPython.display import clear_output
 from torch.nn.utils import clip_grad_norm_
-from deepRL.ReplayBuffer import ReplayBuffer, PrioritizedReplayBuffer
-from deepRL.RainbowNet import CNNNetwork, NoisyLinear
+from Agent.deepRL.ReplayBuffer import ReplayBuffer, PrioritizedReplayBuffer
+from Agent.deepRL.RainbowNet import CNNNetwork, NoisyLinear
 # from envs.roadmap_env.MultiAgentRoadmapEnv import MultiAgentRoadmapEnv
-from ..env import GridmapEnv
+from env import GridmapEnv
 
 class DQNAgent:
     """DQN Agent interacting with environment.
@@ -129,9 +129,10 @@ class DQNAgent:
         # mode: train / test
         self.is_test = False
 
-    def select_action(self, state: np.ndarray, mask) -> np.ndarray:
+    def select_action(self, state: np.ndarray, mask = None) -> np.ndarray:
         """Select an action from the input state."""
         # NoisyNet: no epsilon greedy action selection
+        state = np.expand_dims(state, axis=0)
         q_value = self.dqn(torch.FloatTensor(state).to(self.device)) * torch.tensor(mask).to(self.device)
         # q_value[q_value == 0] = torch.finfo(torch.float).min
         # print(q_value)
@@ -143,7 +144,7 @@ class DQNAgent:
         # print(selected_action)
         return selected_action
 
-    def step(self, action: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.float64, bool, np.float32]:
+    def step(self, action: np.ndarray) -> tuple[float, Any, bool, bool, dict]:
         """Take an action and return the response of the env."""
         next_state, mask, reward, terminated, info = self.env.step(action)
         done = terminated
@@ -199,7 +200,7 @@ class DQNAgent:
         # PER: update priorities
         loss_for_prior = elementwise_loss.detach().cpu().numpy()
         new_priorities = loss_for_prior + self.prior_eps
-        self.memory.update_priorities(indices, new_priorities)
+        self.memory.update_priorities(list(indices), new_priorities)
 
         # NoisyNet: reset noise
         self.dqn.reset_noise()
@@ -270,7 +271,7 @@ class DQNAgent:
 
         while not done:
             action = self.select_action(state)
-            next_state, reward, done = self.step(action)
+            next_state, mask, reward, done, info = self.step(action)
 
             state = next_state
             score += reward
@@ -352,3 +353,4 @@ class DQNAgent:
         plt.title('info_list')
         plt.plot(info_list)
         plt.show()
+

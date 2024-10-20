@@ -187,7 +187,9 @@ class CNNNetwork(nn.Module):
         """Forward method implementation."""
         # x 形状为 (batch_size, 1, grid_size, grid_size)
         x = self.conv_layer(x)
+        print("Shape after conv layer:", x.shape)  # 打印卷积层输出的形状
         x = x.view(x.size(0), -1)  # 将卷积层输出展平
+        print("Shape after flattening:", x.shape)  # 打印展平后的形状
 
         dist = self.dist(x)
         q = torch.sum(dist * self.support, dim=2)
