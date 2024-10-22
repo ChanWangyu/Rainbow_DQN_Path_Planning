@@ -1,14 +1,14 @@
-from typing import Deque, Dict, List, Tuple, Any
+from typing import Dict, List, Any
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.optim as optim
-from IPython.display import clear_output
+# from IPython.display import clear_output
 from torch.nn.utils import clip_grad_norm_
-from Agent.deepRL.ReplayBuffer import ReplayBuffer, PrioritizedReplayBuffer
-from Agent.deepRL.RainbowNet import CNNNetwork, NoisyLinear
+from util.ReplayBuffer import ReplayBuffer, PrioritizedReplayBuffer
+from util.RainbowNet import CNNNetwork
 # from envs.roadmap_env.MultiAgentRoadmapEnv import MultiAgentRoadmapEnv
-from env import GridmapEnv
+from util.env import GridmapEnv
 
 class DQNAgent:
     """DQN Agent interacting with environment.
@@ -340,7 +340,7 @@ class DQNAgent:
             info_list: List[float],
     ):
         """Plot the training progresses."""
-        clear_output(True)
+        # clear_output(True)
         plt.figure(figsize=(20, 5))
         plt.subplot(131)
         plt.title('frame %s. score: %s' % (frame_idx, np.mean(scores[-10:])))

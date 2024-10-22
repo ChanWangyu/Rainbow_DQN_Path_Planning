@@ -1,4 +1,4 @@
-from env import GridmapEnv
+from util.env import GridmapEnv
 from Agent.RainbowAgent import DQNAgent
 import numpy as np
 import torch

@@ -1,7 +1,7 @@
 from collections import deque
 from typing import Deque, Dict, List, Tuple
 import numpy as np
-from Agent.deepRL.segment_tree import MinSegmentTree, SumSegmentTree
+from util.segment_tree import MinSegmentTree, SumSegmentTree
 import random
 
 class ReplayBuffer:
