@@ -1,5 +1,4 @@
 from typing import Deque, Dict, List, Tuple, Any
-import gym
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
