@@ -192,7 +192,7 @@ class CNNNetwork(nn.Module):
         print("Shape after flattening:", x.shape)  # 打印展平后的形状
 
         dist = self.dist(x)
-        q = torch.sum(dist * self.support, dim=2)
+        q = torch.sum(dist * self.support, dim=2) # 求解的是期望，所以是密度函数的求和
 
         return q
 
@@ -229,7 +229,7 @@ V_MAX = 10  # 支持向量的最大值
 # 创建支持向量
 support = torch.linspace(V_MIN, V_MAX, ATOM_SIZE)
 
-from Rainbow_DQN_Path_Planning.env import GridmapEnv
+from util.env import GridmapEnv
 
 def main():
     # 创建 GridmapEnv 实例
@@ -259,9 +259,6 @@ def main():
     print("Reward:", reward)
     print("Done:", done)
     print("Info:", info)
-
-    # 在结束时关闭环境
-    env.close()
 
 if __name__ == "__main__":
     main()

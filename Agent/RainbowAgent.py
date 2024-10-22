@@ -1,4 +1,4 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -14,7 +14,7 @@ class DQNAgent:
     """DQN Agent interacting with environment.
 
     Attribute:
-        env (gym.Env): openAI Gym environment
+        env (util.env): env of grid path planning
         memory (PrioritizedReplayBuffer): replay memory to store transitions
         batch_size (int): batch size for sampling
         target_update (int): period for target model's hard update
@@ -52,34 +52,16 @@ class DQNAgent:
             # N-step Learning
             n_step: int = 3,
     ):
-        """Initialization.
-
-        Args:
-            env (gym.Env): openAI Gym environment
-            memory_size (int): length of memory
-            batch_size (int): batch size for sampling
-            target_update (int): period for target model's hard update
-            lr (float): learning rate
-            gamma (float): discount factor
-            alpha (float): determines how much prioritization is used
-            beta (float): determines how much importance sampling is used
-            prior_eps (float): guarantees every transition can be sampled
-            v_min (float): min value of support
-            v_max (float): max value of support
-            atom_size (int): the unit number of support
-            n_step (int): step number to calculate n-step td error
-        """
         obs_dim = env.obs_dim
-        action_dim = env.action_space.n
+        action_dim = len(env.action_space)
 
         self.env = env
         self.batch_size = batch_size
         self.target_update = target_update
         self.seed = seed
         self.gamma = gamma
-        # NoisyNet: All attributes related to epsilon are removed
+        # 使用Noisy_net意味着不需要使用Epsilon动作选择
 
-        # device: cpu / gpu
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
         )
@@ -104,6 +86,7 @@ class DQNAgent:
         # Categorical DQN parameters
         self.v_min = v_min
         self.v_max = v_max
+        # v_min和v_max的意义：概率密度函数的横坐标取值
         self.atom_size = atom_size
         self.support = torch.linspace(
             self.v_min, self.v_max, self.atom_size
@@ -132,6 +115,7 @@ class DQNAgent:
         """Select an action from the input state."""
         # NoisyNet: no epsilon greedy action selection
         state = np.expand_dims(state, axis=0)
+        # todo:缺少对网络的惩罚，如果仅仅通过mask来避免动作的话
         q_value = self.dqn(torch.FloatTensor(state).to(self.device)) * torch.tensor(mask).to(self.device)
         # q_value[q_value == 0] = torch.finfo(torch.float).min
         # print(q_value)
@@ -143,7 +127,7 @@ class DQNAgent:
         # print(selected_action)
         return selected_action
 
-    def step(self, action: np.ndarray) -> tuple[float, Any, bool, bool, dict]:
+    def step(self, action: np.ndarray) -> Tuple[float, Any, bool, bool, dict]:
         """Take an action and return the response of the env."""
         next_state, mask, reward, terminated, info = self.env.step(action)
         done = terminated

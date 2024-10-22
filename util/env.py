@@ -3,10 +3,18 @@ import numpy as np
 import networkx as nx  # 导入 networkx
 from gym import spaces
 
-CURRENT_POSITION = 2
-END_POSITION = 3
+#todo:相当于没有碰撞惩罚了，是否合理呢
 
-class GridmapEnv(gym.Env):
+CURRENT_POSITION = -10
+END_POSITION = 10
+ARRIVE_REWARD = 100
+STEP_REWARD = 0
+
+# set random seed
+def initialize_seed(seed):
+    np.random.seed(seed)
+
+class GridmapEnv():
     """Grid Map Environment for path planning."""
 
     def __init__(self, grid_size=(10, 10), obstacle_ratio=0.2, seed=None):
@@ -15,23 +23,20 @@ class GridmapEnv(gym.Env):
         self.start = None
         self.end = None
         self.cur = None
-        self.seed = seed
         self.done = False
 
-        # 初始化 action 和 observation 空间
-        self.action_space = spaces.Discrete(4)  # 上、下、左、右
-        self.obs_dim = self.grid_size[0]
-        self.observation_space = spaces.Box(low=0, high=3, shape=(self.obs_dim,), dtype=np.float32)
+        initialize_seed(seed)
 
-        # 初始化图结构
-        self.G = nx.Graph()  # 用于最短路径计算
+        # 初始化 action 和 observation 空间
+        self.action_space = [0,1,2,3]  # 上、下、左、右
+        self.obs_dim = self.grid_size[0]
+
         self.grid_map = self._create_grid_map()
-        self._build_graph()
         self._reset_start_end()
 
     def _create_grid_map(self):
         """创建包含障碍物的随机地图。"""
-        np.random.seed(self.seed)
+        # np.random.seed(self.seed)
         grid_map = np.zeros(self.grid_size, dtype=int)
         num_obstacles = int(self.grid_size[0] * self.grid_size[1] * self.obstacle_ratio)
 
@@ -42,19 +47,6 @@ class GridmapEnv(gym.Env):
             grid_map[x, y] = 1  # 1 代表障碍物
 
         return grid_map
-
-    def _build_graph(self):
-        """根据地图构建图结构，其中每个非障碍物格子是一个节点。"""
-        for x in range(self.grid_size[0]):
-            for y in range(self.grid_size[1]):
-                if self.grid_map[x, y] == 0:  # 不是障碍物的格子
-                    self.G.add_node((x, y))
-                    # 添加相邻格子的边（上下左右）
-                    for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                        nx, ny = x + dx, y + dy
-                        if 0 <= nx < self.grid_size[0] and 0 <= ny < self.grid_size[1]:
-                            if self.grid_map[nx, ny] == 0:
-                                self.G.add_edge((x, y), (nx, ny))
 
     def _reset_start_end(self):
         """确保起点和终点不在障碍物上。"""
@@ -80,12 +72,10 @@ class GridmapEnv(gym.Env):
         """重置环境，返回初始观测值和动作掩码。"""
         # 重新生成地图，并重置起点和终点
         self.grid_map = self._create_grid_map()
-        self._build_graph()
         self._reset_start_end()
 
         self.done = False  # 重置完成标志
         obs = self._get_full_state()  # 获取完整的初始状态
-
         mask = self._get_action_mask()  # 获取动作掩码
 
         return obs, mask
@@ -109,17 +99,10 @@ class GridmapEnv(gym.Env):
 
         # 奖励：到达终点为1，否则根据距离给负奖励
         distance_to_goal = np.linalg.norm(np.array([x, y]) - np.array(self.end))
-        reward = 1 if done else -0.1 * distance_to_goal
-
-        # 计算路径偏差信息
-        try:
-            shortest_path = nx.shortest_path_length(self.G, source=tuple(self.start), target=tuple(self.end))
-            print(shortest_path)
-        except nx.NetworkXNoPath:
-            shortest_path = float('inf')  # 没有路径时设为无穷大
+        reward = ARRIVE_REWARD if done else -0.1 * distance_to_goal+STEP_REWARD
 
         actual_steps = np.linalg.norm(self.cur - np.array(self.start))
-        info = actual_steps - shortest_path
+        info = actual_steps
 
         if done:
             print("Arrived at the goal!")
@@ -145,13 +128,18 @@ class GridmapEnv(gym.Env):
 
 
 def main():
-    env = GridmapEnv(seed=34)
+    env = GridmapEnv(seed=10)
     obs, mask = env.reset()
     print("Initial Observation:")
     print(obs)
     print("Action Mask:", mask)
 
-    print(env.action_space.n)
+    obs, mask = env.reset()
+    print("Initial Observation:")
+    print(obs)
+    print("Action Mask:", mask)
+
+    print(env.action_space)
     print(env.obs_dim)
 
     next_state, mask, reward, terminated, info = env.step(1)
