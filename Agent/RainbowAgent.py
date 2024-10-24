@@ -192,7 +192,7 @@ class DQNAgent:
 
         return loss.item()
 
-    def train(self, num_episode: int, plotting_interval: int = 2000):
+    def train(self, num_episode: int, showing_interval: int = 2000):
         """Train the agent."""
         self.is_test = False
 
@@ -202,7 +202,7 @@ class DQNAgent:
         scores = []
         info_list = []
         score = 0
-        info_total = 0
+        # info_total = 0
         for episode_idx in range(1, num_episode + 1):
             action = self.select_action(state, mask)
             next_mask, next_state, reward, done, info = self.step(action)
@@ -211,7 +211,8 @@ class DQNAgent:
             mask = next_mask
             score += reward
             #todo:info没有作用考虑删除
-            info_total += info
+
+            # info_total += info
             # NoisyNet: removed decrease of epsilon
 
             # PER: increase beta
@@ -237,10 +238,8 @@ class DQNAgent:
                     self._target_hard_update()
 
             # plotting
-            if episode_idx % plotting_interval == 0:
+            if episode_idx % showing_interval == 0:
                 self._plot(episode_idx, scores, losses, info_list)
-
-        self.env.close()
 
     def test(self, video_folder: str) -> None:
         """Test the agent."""
@@ -250,7 +249,7 @@ class DQNAgent:
         naive_env = self.env
         # self.env = gym.wrappers.RecordVideo(self.env, video_folder=video_folder)
 
-        state, _ = self.env.reset(0)
+        state, _ = self.env.reset()
         done = False
         score = 0
 
@@ -281,7 +280,7 @@ class DQNAgent:
         with torch.no_grad():
             # Double DQN
             next_action = self.dqn(next_state.unsqueeze(1)).argmax(1)
-            next_dist = self.dqn_target.dist(next_state)
+            next_dist = self.dqn_target.dist(next_state.unsqueeze(1))
             next_dist = next_dist[range(self.batch_size), next_action]
 
             t_z = reward + (1 - done) * gamma * self.support

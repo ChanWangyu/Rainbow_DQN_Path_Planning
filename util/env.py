@@ -1,7 +1,5 @@
-import gym
 import numpy as np
 import networkx as nx  # 导入 networkx
-from gym import spaces
 
 # todo:相当于没有碰撞惩罚了，是否合理呢
 

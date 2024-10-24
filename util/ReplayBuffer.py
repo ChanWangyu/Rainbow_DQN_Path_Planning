@@ -52,8 +52,6 @@ class ReplayBuffer:
         )
         obs, mask, act = self.n_step_buffer[0][:3]
 
-        print(self.obs_buf)
-
         self.obs_buf[self.ptr] = obs
         self.mask_buf[self.ptr] = mask
         self.next_obs_buf[self.ptr] = next_obs

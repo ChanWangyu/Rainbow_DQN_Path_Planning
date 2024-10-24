@@ -186,18 +186,20 @@ class CNNNetwork(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward method implementation."""
         # x 形状为 (batch_size, 1, grid_size, grid_size)
-        x = self.conv_layer(x)
-        print("Shape after conv layer:", x.shape)  # 打印卷积层输出的形状
-        x = x.view(x.size(0), -1)  # 将卷积层输出展平
-        print("Shape after flattening:", x.shape)  # 打印展平后的形状
+        # x = self.conv_layer(x)
+        # print("Shape after conv layer:", x.shape)  # 打印卷积层输出的形状
+        # x = x.view(x.size(0), -1)  # 将卷积层输出展平
+        # print("Shape after flattening:", x.shape)  # 打印展平后的形状
 
-        dist = self.dist(x)# todo:错 乱几把写
+        dist = self.dist(x)
         q = torch.sum(dist * self.support, dim=2) # 求解的是期望，所以是密度函数的求和
 
         return q
 
     def dist(self, x: torch.Tensor) -> torch.Tensor:
         """Get distribution for atoms."""
+        x = self.conv_layer(x)
+        x = x.view(x.size(0), -1)
         adv_hid = F.relu(self.fc_advantage_hidden(x))
         val_hid = F.relu(self.fc_value_hidden(x))
 

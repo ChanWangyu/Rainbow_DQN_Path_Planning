@@ -42,8 +42,8 @@ def main():
 
     # 开始训练
     num_episodes = 1000  # 设置合适的训练轮数
-    plotting_interval = 100  # 每100轮绘制一次结果
-    agent.train(num_episode=num_episodes, plotting_interval=plotting_interval)
+    showing_interval = 100  # 每100轮绘制一次结果
+    agent.train(num_episode=num_episodes, showing_interval=showing_interval)
 
     # # 测试代理，保存测试视频到文件夹
     # video_folder = "./videos/"
