@@ -1,7 +1,7 @@
 import numpy as np
 import networkx as nx  # 导入 networkx
 
-# todo:相当于没有碰撞惩罚了，是否合理呢
+# todo:可以添加一个检查网格是否可达的函数
 
 CURRENT_POSITION = -10
 END_POSITION = 10
