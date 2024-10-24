@@ -20,10 +20,11 @@ class ReplayBuffer:
         self.mask_buf = np.zeros([size, action_dim], dtype=np.float32)
         self.next_obs_buf = np.zeros([size, obs_dim[0], obs_dim[1]], dtype=np.float32)
         self.acts_buf = np.zeros([size], dtype=np.float32)
-        self.rews_buf = np.zeros([size], dtype=np.float32)
+        self.rew_buf = np.zeros([size], dtype=np.float32)
         self.done_buf = np.zeros(size, dtype=np.float32)
         self.max_size, self.batch_size = size, batch_size
-        self.ptr, self.size, = 0, 0
+        self.ptr = 0
+        self.size = 0
 
         # for N-step Learning
         self.n_step_buffer = deque(maxlen=n_step)
@@ -56,7 +57,7 @@ class ReplayBuffer:
         self.mask_buf[self.ptr] = mask
         self.next_obs_buf[self.ptr] = next_obs
         self.acts_buf[self.ptr] = act
-        self.rews_buf[self.ptr] = rew
+        self.rew_buf[self.ptr] = rew
         self.done_buf[self.ptr] = done
         self.ptr = (self.ptr + 1) % self.max_size
         self.size = min(self.size + 1, self.max_size)
@@ -71,7 +72,7 @@ class ReplayBuffer:
             mask=self.mask_buf[idxs],
             next_obs=self.next_obs_buf[idxs],
             acts=self.acts_buf[idxs],
-            rews=self.rews_buf[idxs],
+            rews=self.rew_buf[idxs],
             done=self.done_buf[idxs],
             # for N-step Learning
             indices=idxs,
@@ -86,7 +87,7 @@ class ReplayBuffer:
             mask=self.mask_buf[idxs],
             next_obs=self.next_obs_buf[idxs],
             acts=self.acts_buf[idxs],
-            rews=self.rews_buf[idxs],
+            rews=self.rew_buf[idxs],
             done=self.done_buf[idxs],
         )
 
@@ -178,7 +179,7 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         mask = self.mask_buf[indices]
         next_obs = self.next_obs_buf[indices]
         acts = self.acts_buf[indices]
-        rews = self.rews_buf[indices]
+        rews = self.rew_buf[indices]
         done = self.done_buf[indices]
         weights = np.array([self._calculate_weight(i, beta) for i in indices])
 

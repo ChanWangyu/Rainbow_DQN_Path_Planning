@@ -12,7 +12,7 @@ def main():
 
     # 超参数设置
     memory_size = 10000
-    batch_size = 32
+    batch_size = 1000
     target_update = 100
     gamma = 0.99
     alpha = 0.2
@@ -41,9 +41,12 @@ def main():
     )
 
     # 开始训练
-    num_episodes = 1000  # 设置合适的训练轮数
+    num_map = 100 # 设置合适的地图数量
+    num_episodes = 1000  # 每个地图设置合适的训练轮数
     showing_interval = 100  # 每100轮绘制一次结果
-    agent.train(num_episode=num_episodes, showing_interval=showing_interval)
+    agent.train(num_map=num_map,
+                num_episode=num_episodes,
+                showing_interval=showing_interval)
 
     # # 测试代理，保存测试视频到文件夹
     # video_folder = "./videos/"

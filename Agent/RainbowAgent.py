@@ -114,28 +114,23 @@ class DQNAgent:
     def select_action(self, state: np.ndarray, mask = None) -> np.ndarray:
         """Select an action from the input state."""
         # NoisyNet: no epsilon greedy action selection
-        # state = np.expand_dims(state, axis=0)
-        # state = np.expand_dims(state, axis=0)
         # todo:缺少对网络的惩罚，如果仅仅通过mask来避免动作的话
-        q_value = self.dqn(torch.FloatTensor(state).to(self.device).unsqueeze(0).unsqueeze(0)) * torch.tensor(mask).to(self.device)
-        # q_value[q_value == 0] = torch.finfo(torch.float).min
-        # print(q_value)
+        q_value = self.dqn(torch.FloatTensor(state).to(self.device).unsqueeze(0).unsqueeze(0))
+        q_value = q_value * torch.tensor(mask).to(self.device)
         selected_action = q_value.argmax()
         selected_action = selected_action.detach().cpu().numpy()
 
         if not self.is_test:
             self.transition = [state, mask, selected_action]
-        # print(selected_action)
+
         return selected_action
 
     def step(self, action: np.ndarray) -> Tuple[float, Any, bool, bool, dict]:
         """Take an action and return the response of the env."""
-        next_state, mask, reward, terminated, info = self.env.step(action)
-        done = terminated
+        next_state, mask, reward, done, info = self.env.step(action)
 
         if not self.is_test:
             self.transition += [reward, next_state, done]
-
             # N-step transition
             if self.use_n_step:
                 one_step_transition = self.memory_n.store(*self.transition)
@@ -149,13 +144,10 @@ class DQNAgent:
 
         return mask, next_state, reward, done, info
 
-    def update_model(self) -> torch.Tensor:
+    def update_model(self, beta: float) -> torch.Tensor:
         """Update the model by gradient descent."""
-        # PER needs beta to calculate weights
-        samples = self.memory.sample_batch(self.beta)
-        weights = torch.FloatTensor(
-            samples["weights"].reshape(-1, 1)
-        ).to(self.device)
+        samples = self.memory.sample_batch(beta)
+        weights = torch.FloatTensor(samples["weights"].reshape(-1, 1)).to(self.device)
         indices = samples["indices"]
 
         # 1-step Learning loss
@@ -165,8 +157,8 @@ class DQNAgent:
         loss = torch.mean(elementwise_loss * weights)
 
         # N-step Learning loss
-        # we are gonna combine 1-step loss and n-step loss so as to
-        # prevent high-variance. The original rainbow employs n-step loss only.
+        # We are going to combine 1-step loss and n-step loss so as to prevent high-variance.
+        # The original rainbow employs n-step loss only.
         if self.use_n_step:
             gamma = self.gamma ** self.n_step
             samples = self.memory_n.sample_batch_from_idxs(indices)
@@ -178,68 +170,73 @@ class DQNAgent:
 
         self.optimizer.zero_grad()
         loss.backward()
+        # 梯度裁剪防止梯度爆炸
         clip_grad_norm_(self.dqn.parameters(), 10.0)
         self.optimizer.step()
 
-        # PER: update priorities
         loss_for_prior = elementwise_loss.detach().cpu().numpy()
         new_priorities = loss_for_prior + self.prior_eps
         self.memory.update_priorities(list(indices), new_priorities)
 
-        # NoisyNet: reset noise
         self.dqn.reset_noise()
         self.dqn_target.reset_noise()
 
-        return loss.item()
+        return loss
 
-    def train(self, num_episode: int, showing_interval: int = 2000):
+    def train(self,
+              num_map: int,
+              num_episode: int,
+              showing_interval: int = 2000):
         """Train the agent."""
         self.is_test = False
 
-        state, mask = self.env.reset()
         update_cnt = 0
         losses = []
         scores = []
-        info_list = []
+        # info_list = []
         score = 0
         # info_total = 0
-        for episode_idx in range(1, num_episode + 1):
-            action = self.select_action(state, mask)
-            next_mask, next_state, reward, done, info = self.step(action)
 
-            state = next_state
-            mask = next_mask
-            score += reward
-            #todo:info没有作用考虑删除
+        for map_index in range(num_map):
+            beta = self.beta
+            arrive_time = 0
+            state, mask = self.env.reset()
+            loss = 0
 
-            # info_total += info
-            # NoisyNet: removed decrease of epsilon
+            for episode_idx in range(1, num_episode + 1):
+                action = self.select_action(state, mask)
+                next_mask, next_state, reward, done, info = self.step(action)
 
-            # PER: increase beta
-            fraction = min(episode_idx / num_episode, 1.0)
-            self.beta = self.beta + fraction * (1.0 - self.beta)
+                state = next_state
+                mask = next_mask
+                score += reward
+                # info_total += info
 
-            # if episode ends
-            if done:
-                state, mask = self.env.reset()
-                scores.append(score)
-                score = 0
-                info_list.append(info_total)
-                info_total = 0
+                fraction = min(episode_idx / num_episode, 1.0)
+                beta = beta + fraction * (1.0 - beta)
 
-            # if training is ready
-            if len(self.memory) >= self.batch_size:
-                loss = self.update_model()
-                losses.append(loss)
-                update_cnt += 1
+                if done:
+                    # 重新开始
+                    state, mask = self.env.restart()
+                    scores.append(score)
+                    score = 0
+                    arrive_time += 1
+                    # info_list.append(info_total)
+                    # info_total = 0
 
-                # if hard update is needed
-                if update_cnt % self.target_update == 0:
-                    self._target_hard_update()
+                if self.memory.size >= self.batch_size:
+                    loss = self.update_model(beta).item()
+                    losses.append(loss)
+                    update_cnt += 1
 
-            # plotting
-            if episode_idx % showing_interval == 0:
-                self._plot(episode_idx, scores, losses, info_list)
+                    # if hard update is needed
+                    if update_cnt % self.target_update == 0:
+                        self._target_hard_update()
+
+                # 训练效果的展示
+                if episode_idx % showing_interval == 0:
+                    # self._plot(episode_idx, scores, losses, info_list)
+                    self._print_and_show(map_index, episode_idx, arrive_time, score, loss)
 
     def test(self, video_folder: str) -> None:
         """Test the agent."""
@@ -312,7 +309,7 @@ class DQNAgent:
 
         return elementwise_loss
 
-    def _target_hard_update(self):
+    def _target_hard_update(self) -> None:
         """Hard update: target <- local."""
         self.dqn_target.load_state_dict(self.dqn.state_dict())
 
@@ -322,7 +319,7 @@ class DQNAgent:
             scores: List[float],
             losses: List[float],
             info_list: List[float],
-    ):
+    ) -> None:
         """Plot the training progresses."""
         # clear_output(True)
         plt.figure(figsize=(20, 5))
@@ -336,4 +333,17 @@ class DQNAgent:
         plt.title('info_list')
         plt.plot(info_list)
         plt.show()
+
+    def _print_and_show(self,
+                        map_index: int,
+                        episode_idx: int,
+                        arrive_times: int,
+                        score: int,
+                        loss: int) -> None:
+        """Print and show the training progresses."""
+        print(f'Map: {map_index}')
+        print(f'Episode: {episode_idx}:')
+        print(f'Arrive times: {arrive_times}')
+        print(f'Score: {score}')
+        print(f'Loss: {loss}')
 

@@ -77,6 +77,15 @@ class GridmapEnv():
 
         return obs, mask
 
+    def restart(self):
+        """重新开始，更换起终点"""
+        self._reset_start_end()
+        self.done = False
+        obs = self._get_full_state()
+        mask = self._get_action_mask()
+
+        return obs, mask
+
     def step(self, action):
         """执行一步操作，并返回状态矩阵、动作掩码、奖励、是否完成和信息。"""
         x, y = self.cur
