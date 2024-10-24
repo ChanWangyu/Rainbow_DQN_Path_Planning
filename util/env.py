@@ -72,7 +72,7 @@ class GridmapEnv():
         self._reset_start_end()
 
         self.done = False  # 重置完成标志
-        obs = self._get_full_state()  # 获取完整的初始状态
+        obs = self._get_full_state()  # 获取完整初始状态
         mask = self._get_action_mask()  # 获取动作掩码
 
         return obs, mask
