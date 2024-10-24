@@ -52,7 +52,7 @@ class DQNAgent:
             # N-step Learning
             n_step: int = 3,
     ):
-        obs_dim = env.obs_dim
+        obs_dim = env.grid_size
         action_dim = len(env.action_space)
 
         self.env = env
@@ -72,7 +72,7 @@ class DQNAgent:
         self.beta = beta
         self.prior_eps = prior_eps
         self.memory = PrioritizedReplayBuffer(
-            obs_dim, memory_size, batch_size, alpha=alpha, gamma=gamma
+            obs_dim, action_dim, memory_size, batch_size, alpha=alpha, gamma=gamma
         )
 
         # memory for N-step Learning
@@ -80,7 +80,7 @@ class DQNAgent:
         if self.use_n_step:
             self.n_step = n_step
             self.memory_n = ReplayBuffer(
-                obs_dim, memory_size, batch_size, n_step=n_step, gamma=gamma
+                obs_dim, action_dim, memory_size, batch_size, n_step=n_step, gamma=gamma
             )
 
         # Categorical DQN parameters
@@ -94,10 +94,10 @@ class DQNAgent:
 
         # networks: dqn, dqn_target
         self.dqn = CNNNetwork(
-            obs_dim, action_dim, self.atom_size, self.support
+            obs_dim[0], action_dim, self.atom_size, self.support
         ).to(self.device)
         self.dqn_target = CNNNetwork(
-            obs_dim, action_dim, self.atom_size, self.support
+            obs_dim[0], action_dim, self.atom_size, self.support
         ).to(self.device)
         self.dqn_target.load_state_dict(self.dqn.state_dict())
         self.dqn_target.eval()
@@ -114,9 +114,10 @@ class DQNAgent:
     def select_action(self, state: np.ndarray, mask = None) -> np.ndarray:
         """Select an action from the input state."""
         # NoisyNet: no epsilon greedy action selection
-        state = np.expand_dims(state, axis=0)
+        # state = np.expand_dims(state, axis=0)
+        # state = np.expand_dims(state, axis=0)
         # todo:缺少对网络的惩罚，如果仅仅通过mask来避免动作的话
-        q_value = self.dqn(torch.FloatTensor(state).to(self.device)) * torch.tensor(mask).to(self.device)
+        q_value = self.dqn(torch.FloatTensor(state).to(self.device).unsqueeze(0).unsqueeze(0)) * torch.tensor(mask).to(self.device)
         # q_value[q_value == 0] = torch.finfo(torch.float).min
         # print(q_value)
         selected_action = q_value.argmax()
@@ -209,6 +210,7 @@ class DQNAgent:
             state = next_state
             mask = next_mask
             score += reward
+            #todo:info没有作用考虑删除
             info_total += info
             # NoisyNet: removed decrease of epsilon
 
@@ -260,7 +262,6 @@ class DQNAgent:
             score += reward
 
         print("score: ", score)
-        self.env.close()
 
         # reset
         self.env = naive_env
@@ -279,7 +280,7 @@ class DQNAgent:
 
         with torch.no_grad():
             # Double DQN
-            next_action = self.dqn(next_state).argmax(1)
+            next_action = self.dqn(next_state.unsqueeze(1)).argmax(1)
             next_dist = self.dqn_target.dist(next_state)
             next_dist = next_dist[range(self.batch_size), next_action]
 
@@ -306,7 +307,7 @@ class DQNAgent:
                 0, (u + offset).view(-1), (next_dist * (b - l.float())).view(-1)
             )
 
-        dist = self.dqn.dist(state)
+        dist = self.dqn.dist(state.unsqueeze(1))
         log_p = torch.log(dist[range(self.batch_size), action])
         elementwise_loss = -(proj_dist * log_p).sum(1)
 

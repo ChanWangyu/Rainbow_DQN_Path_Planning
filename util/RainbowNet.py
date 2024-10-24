@@ -191,7 +191,7 @@ class CNNNetwork(nn.Module):
         x = x.view(x.size(0), -1)  # 将卷积层输出展平
         print("Shape after flattening:", x.shape)  # 打印展平后的形状
 
-        dist = self.dist(x)
+        dist = self.dist(x)# todo:错 乱几把写
         q = torch.sum(dist * self.support, dim=2) # 求解的是期望，所以是密度函数的求和
 
         return q

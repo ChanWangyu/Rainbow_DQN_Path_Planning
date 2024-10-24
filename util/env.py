@@ -3,7 +3,7 @@ import numpy as np
 import networkx as nx  # 导入 networkx
 from gym import spaces
 
-#todo:相当于没有碰撞惩罚了，是否合理呢
+# todo:相当于没有碰撞惩罚了，是否合理呢
 
 CURRENT_POSITION = -10
 END_POSITION = 10
@@ -29,7 +29,6 @@ class GridmapEnv():
 
         # 初始化 action 和 observation 空间
         self.action_space = [0,1,2,3]  # 上、下、左、右
-        self.obs_dim = self.grid_size[0]
 
         self.grid_map = self._create_grid_map()
         self._reset_start_end()
@@ -106,7 +105,6 @@ class GridmapEnv():
 
         if done:
             print("Arrived at the goal!")
-            print(f"Info: {info}")
 
         next_state = self._get_full_state()
         return next_state, self._get_action_mask(), reward, done, info
@@ -140,7 +138,7 @@ def main():
     print("Action Mask:", mask)
 
     print(env.action_space)
-    print(env.obs_dim)
+    print(env.grid_size)
 
     next_state, mask, reward, terminated, info = env.step(1)
     done = terminated

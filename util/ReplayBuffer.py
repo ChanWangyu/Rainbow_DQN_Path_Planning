@@ -9,15 +9,16 @@ class ReplayBuffer:
 
     def __init__(
             self,
-            obs_dim: int,
+            obs_dim: tuple,
+            action_dim: int,
             size: int,
             batch_size: int = 32,
             n_step: int = 1,
             gamma: float = 0.99
     ):
-        self.obs_buf = np.zeros([size, obs_dim], dtype=np.float32)
-        self.mask_buf = np.zeros([size, 8], dtype=np.float32)
-        self.next_obs_buf = np.zeros([size, obs_dim], dtype=np.float32)
+        self.obs_buf = np.zeros([size, obs_dim[0], obs_dim[1]], dtype=np.float32)
+        self.mask_buf = np.zeros([size, action_dim], dtype=np.float32)
+        self.next_obs_buf = np.zeros([size, obs_dim[0], obs_dim[1]], dtype=np.float32)
         self.acts_buf = np.zeros([size], dtype=np.float32)
         self.rews_buf = np.zeros([size], dtype=np.float32)
         self.done_buf = np.zeros(size, dtype=np.float32)
@@ -50,6 +51,8 @@ class ReplayBuffer:
             self.n_step_buffer, self.gamma
         )
         obs, mask, act = self.n_step_buffer[0][:3]
+
+        print(self.obs_buf)
 
         self.obs_buf[self.ptr] = obs
         self.mask_buf[self.ptr] = mask
@@ -122,7 +125,8 @@ class PrioritizedReplayBuffer(ReplayBuffer):
 
     def __init__(
             self,
-            obs_dim: int,
+            obs_dim: tuple,
+            action_dim: int,
             size: int,
             batch_size: int = 32,
             alpha: float = 0.6,
@@ -133,7 +137,7 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         assert alpha >= 0
 
         super(PrioritizedReplayBuffer, self).__init__(
-            obs_dim, size, batch_size, n_step, gamma
+            obs_dim, action_dim, size, batch_size, n_step, gamma
         )
         self.max_priority, self.tree_ptr = 1.0, 0
         self.alpha = alpha
