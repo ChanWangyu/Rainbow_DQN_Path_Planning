@@ -79,7 +79,7 @@ class GridmapEnv():
 
     def restart(self):
         """重新开始，更换起终点"""
-        self._reset_start_end()
+        self.cur = self.start
         self.done = False
         obs = self._get_full_state()
         mask = self._get_action_mask()
@@ -109,9 +109,8 @@ class GridmapEnv():
 
         actual_steps = np.linalg.norm(self.cur - np.array(self.start))
         info = actual_steps
-
-        if done:
-            print("Arrived at the goal!")
+        # if done:
+        #     print("Arrived at the goal!")
 
         next_state = self._get_full_state()
         return next_state, self._get_action_mask(), reward, done, info

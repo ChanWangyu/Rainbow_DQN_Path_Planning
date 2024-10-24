@@ -342,7 +342,7 @@ class DQNAgent:
                         loss: int) -> None:
         """Print and show the training progresses."""
         print(f'Map: {map_index}')
-        print(f'Episode: {episode_idx}:')
+        print(f'Episode: {episode_idx}')
         print(f'Arrive times: {arrive_times}')
         print(f'Score: {score}')
         print(f'Loss: {loss}')
