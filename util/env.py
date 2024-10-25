@@ -7,6 +7,7 @@ CURRENT_POSITION = -10
 END_POSITION = 10
 ARRIVE_REWARD = 100
 STEP_REWARD = 0
+DISTANCE_C = 0 #-0.1
 
 # set random seed
 def initialize_seed(seed):
@@ -105,7 +106,7 @@ class GridmapEnv():
 
         # 奖励：到达终点为1，否则根据距离给负奖励
         distance_to_goal = np.linalg.norm(np.array([x, y]) - np.array(self.end))
-        reward = ARRIVE_REWARD if done else -0.1 * distance_to_goal+STEP_REWARD
+        reward = ARRIVE_REWARD if done else DISTANCE_C * distance_to_goal+STEP_REWARD
 
         actual_steps = np.linalg.norm(self.cur - np.array(self.start))
         info = actual_steps

@@ -114,7 +114,7 @@ class DQNAgent:
     def select_action(self, state: np.ndarray, mask = None) -> np.ndarray:
         """Select an action from the input state."""
         # NoisyNet: no epsilon greedy action selection
-        # todo:缺少对网络的惩罚，如果仅仅通过mask来避免动作的话
+        # todo:如果仅仅通过mask来避免动作的话，缺少对网络的惩罚
         q_value = self.dqn(torch.FloatTensor(state).to(self.device).unsqueeze(0).unsqueeze(0))
         q_value = q_value * torch.tensor(mask).to(self.device)
         selected_action = q_value.argmax()
@@ -201,6 +201,7 @@ class DQNAgent:
             beta = self.beta
             arrive_time = 0
             state, mask = self.env.reset()
+            print(state)
             loss = 0
 
             for episode_idx in range(1, num_episode + 1):
