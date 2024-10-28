@@ -203,6 +203,7 @@ class DQNAgent:
             state, mask = self.env.reset()
             print(state)
             loss = 0
+            path = [self.env.cur]
 
             for episode_idx in range(1, num_episode + 1):
                 action = self.select_action(state, mask)
@@ -212,13 +213,16 @@ class DQNAgent:
                 mask = next_mask
                 score += reward
                 # info_total += info
+                path.append(self.env.cur)
 
                 fraction = min(episode_idx / num_episode, 1.0)
                 beta = beta + fraction * (1.0 - beta)
 
                 if done:
                     # 重新开始
+                    print(f"Map {map_index} - Episode {episode_idx} Path: {path}")
                     state, mask = self.env.restart()
+                    path = [self.env.cur]
                     scores.append(score)
                     score = 0
                     arrive_time += 1
@@ -238,6 +242,10 @@ class DQNAgent:
                 if episode_idx % showing_interval == 0:
                     # self._plot(episode_idx, scores, losses, info_list)
                     self._print_and_show(map_index, episode_idx, arrive_time, score, loss)
+
+            if arrive_time == 0:
+                truncated_path = path[:200]
+                print(f"Map {map_index} - Final Path after {num_episode} episodes (first 200 steps): {truncated_path}")
 
     def test(self, video_folder: str) -> None:
         """Test the agent."""
