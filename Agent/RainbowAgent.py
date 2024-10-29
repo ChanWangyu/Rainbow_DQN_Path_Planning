@@ -124,19 +124,25 @@ class DQNAgent:
             last_x, last_y = self.last_pos
             if last_x == self.env.cur[0] - 1 and last_y == self.env.cur[1]:
                 q_value[0] = float('-inf')  # 不允许上动作
+                print("up is forbidden")
             elif last_x == self.env.cur[0] + 1 and last_y == self.env.cur[1]:
                 q_value[1] = float('-inf')  # 不允许下动作
+                print("down is forbidden")
             elif last_x == self.env.cur[0] and last_y == self.env.cur[1] - 1:
                 q_value[2] = float('-inf')  # 不允许左动作
+                print("left is forbidden")
             elif last_x == self.env.cur[0] and last_y == self.env.cur[1] + 1:
                 q_value[3] = float('-inf')  # 不允许右动作
+                print("right is forbidden")
 
+        print(q_value)
         selected_action = q_value.argmax()
         selected_action = selected_action.detach().cpu().numpy()
 
         if not self.is_test:
             self.transition = [state, mask, selected_action]
 
+        print(selected_action)
         return selected_action
 
     def step(self, action: np.ndarray) -> Tuple[float, Any, bool, bool, dict]:
