@@ -111,12 +111,27 @@ class DQNAgent:
         # mode: train / test
         self.is_test = False
 
+        # self.visit_count = {}
+        self.last_pos = None
+
     def select_action(self, state: np.ndarray, mask = None) -> np.ndarray:
         """Select an action from the input state."""
         # NoisyNet: no epsilon greedy action selection
         # todo:如果仅仅通过mask来避免动作的话，缺少对网络的惩罚
         q_value = self.dqn(torch.FloatTensor(state).to(self.device).unsqueeze(0).unsqueeze(0))
         q_value = q_value * torch.tensor(mask).to(self.device)
+        
+        if self.last_pos is not None:
+            last_x, last_y = self.last_pos
+            if last_x == self.env.cur[0] - 1 and last_y == self.env.cur[1]:
+                q_value[0] = float('-inf')  # 不允许上一步动作
+            elif last_x == self.env.cur[0] + 1 and last_y == self.env.cur[1]:
+                q_value[1] = float('-inf')  # 不允许下一步动作
+            elif last_x == self.env.cur[0] and last_y == self.env.cur[1] - 1:
+                q_value[2] = float('-inf')  # 不允许左边动作
+            elif last_x == self.env.cur[0] and last_y == self.env.cur[1] + 1:
+                q_value[3] = float('-inf')  # 不允许右边动作
+
         selected_action = q_value.argmax()
         selected_action = selected_action.detach().cpu().numpy()
 
@@ -128,9 +143,15 @@ class DQNAgent:
     def step(self, action: np.ndarray) -> Tuple[float, Any, bool, bool, dict]:
         """Take an action and return the response of the env."""
         next_state, mask, reward, done, info = self.env.step(action)
+        
+        # state_key = tuple(self.env.cur)
+        # self.visit_count[state_key] = self.visit_count.get(state_key, 0) + 1
+        # if self.visit_count[state_key] > 5:
+        #     reward -= 0.5
 
         if not self.is_test:
             self.transition += [reward, next_state, done]
+            self.last_pos = self.env.cur.tolist()
             # N-step transition
             if self.use_n_step:
                 one_step_transition = self.memory_n.store(*self.transition)
@@ -203,6 +224,7 @@ class DQNAgent:
             state, mask = self.env.reset()
             print(state)
             loss = 0
+            path = [self.env.cur]
 
             for episode_idx in range(1, num_episode + 1):
                 action = self.select_action(state, mask)
@@ -212,13 +234,16 @@ class DQNAgent:
                 mask = next_mask
                 score += reward
                 # info_total += info
+                path.append(self.env.cur)
 
                 fraction = min(episode_idx / num_episode, 1.0)
                 beta = beta + fraction * (1.0 - beta)
 
                 if done:
                     # 重新开始
+                    print(f"Map {map_index} - Episode {episode_idx} Path: {path}")
                     state, mask = self.env.restart()
+                    path = [self.env.cur]
                     scores.append(score)
                     score = 0
                     arrive_time += 1
@@ -238,6 +263,10 @@ class DQNAgent:
                 if episode_idx % showing_interval == 0:
                     # self._plot(episode_idx, scores, losses, info_list)
                     self._print_and_show(map_index, episode_idx, arrive_time, score, loss)
+
+            if arrive_time == 0:
+                truncated_path = path[:200]
+                print(f"Map {map_index} - Final Path after {num_episode} episodes (first 200 steps): {truncated_path}")
 
     def test(self, video_folder: str) -> None:
         """Test the agent."""

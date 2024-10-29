@@ -7,7 +7,7 @@ CURRENT_POSITION = -10
 END_POSITION = 10
 ARRIVE_REWARD = 100
 STEP_REWARD = 0
-DISTANCE_C = 0 #-0.1
+DISTANCE_C = -0.1 #-0.1
 
 # set random seed
 def initialize_seed(seed):

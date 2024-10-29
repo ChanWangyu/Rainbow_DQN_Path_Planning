@@ -41,8 +41,8 @@ def main():
     )
 
     # 开始训练
-    num_map = 100 # 设置合适的地图数量
-    num_episodes = 10000  # 每个地图设置合适的训练轮数
+    num_map = 1 # 设置合适的地图数量
+    num_episodes = 5000  # 每个地图设置合适的训练轮数
     showing_interval = 100  # 每100轮绘制一次结果
     agent.train(num_map=num_map,
                 num_episode=num_episodes,
