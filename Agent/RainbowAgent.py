@@ -111,7 +111,6 @@ class DQNAgent:
         # mode: train / test
         self.is_test = False
 
-        # self.visit_count = {}
         self.last_pos = None
 
     def select_action(self, state: np.ndarray, mask = None) -> np.ndarray:
@@ -124,13 +123,13 @@ class DQNAgent:
         if self.last_pos is not None:
             last_x, last_y = self.last_pos
             if last_x == self.env.cur[0] - 1 and last_y == self.env.cur[1]:
-                q_value[0] = float('-inf')  # 不允许上一步动作
+                q_value[0] = float('-inf')  # 不允许上动作
             elif last_x == self.env.cur[0] + 1 and last_y == self.env.cur[1]:
-                q_value[1] = float('-inf')  # 不允许下一步动作
+                q_value[1] = float('-inf')  # 不允许下动作
             elif last_x == self.env.cur[0] and last_y == self.env.cur[1] - 1:
-                q_value[2] = float('-inf')  # 不允许左边动作
+                q_value[2] = float('-inf')  # 不允许左动作
             elif last_x == self.env.cur[0] and last_y == self.env.cur[1] + 1:
-                q_value[3] = float('-inf')  # 不允许右边动作
+                q_value[3] = float('-inf')  # 不允许右动作
 
         selected_action = q_value.argmax()
         selected_action = selected_action.detach().cpu().numpy()
@@ -143,11 +142,6 @@ class DQNAgent:
     def step(self, action: np.ndarray) -> Tuple[float, Any, bool, bool, dict]:
         """Take an action and return the response of the env."""
         next_state, mask, reward, done, info = self.env.step(action)
-        
-        # state_key = tuple(self.env.cur)
-        # self.visit_count[state_key] = self.visit_count.get(state_key, 0) + 1
-        # if self.visit_count[state_key] > 5:
-        #     reward -= 0.5
 
         if not self.is_test:
             self.transition += [reward, next_state, done]
