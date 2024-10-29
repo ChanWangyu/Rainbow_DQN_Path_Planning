@@ -123,35 +123,31 @@ class DQNAgent:
         if self.last_pos is not None:
             last_x, last_y = self.last_pos
             if last_x == self.env.cur[0] - 1 and last_y == self.env.cur[1]:
-                q_value[0] = float('-inf')  # 不允许上动作
-                print("up is forbidden")
+                q_value[0, 0] = float('-inf')  # 不允许上动作
             elif last_x == self.env.cur[0] + 1 and last_y == self.env.cur[1]:
-                q_value[1] = float('-inf')  # 不允许下动作
-                print("down is forbidden")
+                q_value[0, 1] = float('-inf')  # 不允许下动作
             elif last_x == self.env.cur[0] and last_y == self.env.cur[1] - 1:
-                q_value[2] = float('-inf')  # 不允许左动作
-                print("left is forbidden")
+                q_value[0, 2] = float('-inf')  # 不允许左动作
             elif last_x == self.env.cur[0] and last_y == self.env.cur[1] + 1:
-                q_value[3] = float('-inf')  # 不允许右动作
-                print("right is forbidden")
+                q_value[0, 3] = float('-inf')  # 不允许右动作
 
-        print(q_value)
+        # print(q_value)
         selected_action = q_value.argmax()
         selected_action = selected_action.detach().cpu().numpy()
 
         if not self.is_test:
             self.transition = [state, mask, selected_action]
 
-        print(selected_action)
         return selected_action
 
     def step(self, action: np.ndarray) -> Tuple[float, Any, bool, bool, dict]:
         """Take an action and return the response of the env."""
+        self.last_pos = self.env.cur.tolist()
         next_state, mask, reward, done, info = self.env.step(action)
 
         if not self.is_test:
             self.transition += [reward, next_state, done]
-            self.last_pos = self.env.cur.tolist()
+            # self.last_pos = self.env.cur.tolist()
             # N-step transition
             if self.use_n_step:
                 one_step_transition = self.memory_n.store(*self.transition)
