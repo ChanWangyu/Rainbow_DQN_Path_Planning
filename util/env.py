@@ -7,7 +7,7 @@ CURRENT_POSITION = -10
 END_POSITION = 10
 ARRIVE_REWARD = 100
 STEP_REWARD = 0
-DISTANCE_C = -0.1 #-0.1
+DISTANCE_C = 0 #-0.1
 
 # set random seed
 def initialize_seed(seed):
@@ -76,7 +76,8 @@ class GridmapEnv():
         obs = self._get_full_state()  # 获取完整初始状态
         mask = self._get_action_mask()  # 获取动作掩码
 
-        return obs, mask
+        # return obs, mask
+        return obs
 
     def restart(self):
         """重新开始，更换起终点"""
@@ -114,7 +115,8 @@ class GridmapEnv():
         #     print("Arrived at the goal!")
 
         next_state = self._get_full_state()
-        return next_state, self._get_action_mask(), reward, done, info
+        # return next_state, self._get_action_mask(), reward, done, info
+        return next_state, reward, done, info
 
     def _get_action_mask(self):
         """生成动作掩码，避免选择无效动作。"""

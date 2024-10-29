@@ -118,7 +118,7 @@ class DQNAgent:
         # NoisyNet: no epsilon greedy action selection
         # todo:如果仅仅通过mask来避免动作的话，缺少对网络的惩罚
         q_value = self.dqn(torch.FloatTensor(state).to(self.device).unsqueeze(0).unsqueeze(0))
-        q_value = q_value * torch.tensor(mask).to(self.device)
+        # q_value = q_value * torch.tensor(mask).to(self.device)
         
         if self.last_pos is not None:
             last_x, last_y = self.last_pos
@@ -136,18 +136,19 @@ class DQNAgent:
         selected_action = selected_action.detach().cpu().numpy()
 
         if not self.is_test:
-            self.transition = [state, mask, selected_action]
+            # self.transition = [state, mask, selected_action]
+            self.transition = [state, selected_action]
 
         return selected_action
 
     def step(self, action: np.ndarray) -> Tuple[float, Any, bool, bool, dict]:
         """Take an action and return the response of the env."""
-        self.last_pos = self.env.cur.tolist()
-        next_state, mask, reward, done, info = self.env.step(action)
+        self.last_pos = self.env.cur
+        # next_state, mask, reward, done, info = self.env.step(action)
+        next_state, reward, done, info = self.env.step(action)
 
         if not self.is_test:
             self.transition += [reward, next_state, done]
-            # self.last_pos = self.env.cur.tolist()
             # N-step transition
             if self.use_n_step:
                 one_step_transition = self.memory_n.store(*self.transition)
@@ -159,11 +160,13 @@ class DQNAgent:
             if one_step_transition:
                 self.memory.store(*one_step_transition)
 
-        return mask, next_state, reward, done, info
+        # return mask, next_state, reward, done, info
+        return next_state, reward, done, info
 
     def update_model(self, beta: float) -> torch.Tensor:
         """Update the model by gradient descent."""
         samples = self.memory.sample_batch(beta)
+        print(samples["rews"])
         weights = torch.FloatTensor(samples["weights"].reshape(-1, 1)).to(self.device)
         indices = samples["indices"]
 
@@ -217,17 +220,20 @@ class DQNAgent:
         for map_index in range(num_map):
             beta = self.beta
             arrive_time = 0
-            state, mask = self.env.reset()
+            # state, mask = self.env.reset()
+            state = self.env.reset()
             print(state)
             loss = 0
             path = [self.env.cur]
 
             for episode_idx in range(1, num_episode + 1):
-                action = self.select_action(state, mask)
-                next_mask, next_state, reward, done, info = self.step(action)
+                # action = self.select_action(state, mask)
+                action = self.select_action(state)
+                # next_mask, next_state, reward, done, info = self.step(action)
+                next_state, reward, done, info = self.step(action)
 
                 state = next_state
-                mask = next_mask
+                # mask = next_mask
                 score += reward
                 # info_total += info
                 path.append(self.env.cur)
@@ -237,8 +243,9 @@ class DQNAgent:
 
                 if done:
                     # 重新开始
-                    print(f"Map {map_index} - Episode {episode_idx} Path: {path}")
-                    state, mask = self.env.restart()
+                    print(f"Map {map_index} - Episode {path.length()} Path: {path}")
+                    # state, mask = self.env.restart()
+                    state = self.env.restart()
                     path = [self.env.cur]
                     scores.append(score)
                     score = 0
