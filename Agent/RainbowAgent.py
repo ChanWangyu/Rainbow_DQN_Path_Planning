@@ -5,6 +5,7 @@ import torch
 import torch.optim as optim
 # from IPython.display import clear_output
 from torch.nn.utils import clip_grad_norm_
+from typer.cli import state
 from util.ReplayBuffer import ReplayBuffer, PrioritizedReplayBuffer
 from util.RainbowNet import CNNNetwork
 # from envs.roadmap_env.MultiAgentRoadmapEnv import MultiAgentRoadmapEnv
@@ -111,7 +112,8 @@ class DQNAgent:
         # mode: train / test
         self.is_test = False
 
-        self.last_pos = None
+        self.bad_actions = set()
+        self.visited_states = set()
 
     def select_action(self, state: np.ndarray, mask = None) -> np.ndarray:
         """Select an action from the input state."""
@@ -119,19 +121,10 @@ class DQNAgent:
         # todo:如果仅仅通过mask来避免动作的话，缺少对网络的惩罚
         q_value = self.dqn(torch.FloatTensor(state).to(self.device).unsqueeze(0).unsqueeze(0))
         # q_value = q_value * torch.tensor(mask).to(self.device)
-        
-        if self.last_pos is not None:
-            last_x, last_y = self.last_pos
-            if last_x == self.env.cur[0] - 1 and last_y == self.env.cur[1]:
-                q_value[0, 0] = float('-inf')  # 不允许上动作
-            elif last_x == self.env.cur[0] + 1 and last_y == self.env.cur[1]:
-                q_value[0, 1] = float('-inf')  # 不允许下动作
-            elif last_x == self.env.cur[0] and last_y == self.env.cur[1] - 1:
-                q_value[0, 2] = float('-inf')  # 不允许左动作
-            elif last_x == self.env.cur[0] and last_y == self.env.cur[1] + 1:
-                q_value[0, 3] = float('-inf')  # 不允许右动作
 
-        # print(q_value)
+        for bad_action in self.bad_actions:
+            q_value[0, bad_action] = float('-inf')
+
         selected_action = q_value.argmax()
         selected_action = selected_action.detach().cpu().numpy()
 
@@ -141,11 +134,19 @@ class DQNAgent:
 
         return selected_action
 
-    def step(self, action: np.ndarray) -> Tuple[float, Any, bool, bool, dict]:
+    def step(self, action: np.ndarray) -> tuple[Any, Any, Any, Any]:
         """Take an action and return the response of the env."""
-        self.last_pos = self.env.cur
         # next_state, mask, reward, done, info = self.env.step(action)
         next_state, reward, done, info = self.env.step(action)
+
+        state_tuple = tuple(next_state.flatten())
+
+        if state_tuple in self.visited_states:
+            reward -= 10
+            self.bad_actions.add(action.item())
+        else:
+            self.bad_actions.clear()
+            self.visited_states.add(state_tuple)
 
         if not self.is_test:
             self.transition += [reward, next_state, done]
@@ -166,7 +167,7 @@ class DQNAgent:
     def update_model(self, beta: float) -> torch.Tensor:
         """Update the model by gradient descent."""
         samples = self.memory.sample_batch(beta)
-        # print(samples["rews"])
+        print(samples["rews"])
         weights = torch.FloatTensor(samples["weights"].reshape(-1, 1)).to(self.device)
         indices = samples["indices"]
 
@@ -225,6 +226,7 @@ class DQNAgent:
             print(state)
             loss = 0
             path = [self.env.cur]
+            self.visited_states.clear()
 
             for episode_idx in range(1, num_episode + 1):
                 # action = self.select_action(state, mask)
@@ -246,6 +248,7 @@ class DQNAgent:
                     print(f"Map {map_index} - Episode {len(path)} Path: {path}")
                     # state, mask = self.env.restart()
                     state = self.env.restart()
+                    self.visited_states.clear()
                     path = [self.env.cur]
                     scores.append(score)
                     score = 0
