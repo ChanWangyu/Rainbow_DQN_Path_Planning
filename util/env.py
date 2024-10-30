@@ -93,21 +93,41 @@ class GridmapEnv():
         x, y = self.cur
 
         # 根据动作更新位置
-        if action == 0 and x > 0 and self.grid_map[x - 1, y] == 0:
-            x -= 1  # 向上移动
-        elif action == 1 and x < self.grid_size[0] - 1 and self.grid_map[x + 1, y] == 0:
-            x += 1  # 向下移动
-        elif action == 2 and y > 0 and self.grid_map[x, y - 1] == 0:
-            y -= 1  # 向左移动
-        elif action == 3 and y < self.grid_size[1] - 1 and self.grid_map[x, y + 1] == 0:
-            y += 1  # 向右移动
+        # if action == 0 and x > 0 and self.grid_map[x - 1, y] == 0:
+        #     x -= 1  # 向上移动
+        # elif action == 1 and x < self.grid_size[0] - 1 and self.grid_map[x + 1, y] == 0:
+        #     x += 1  # 向下移动
+        # elif action == 2 and y > 0 and self.grid_map[x, y - 1] == 0:
+        #     y -= 1  # 向左移动
+        # elif action == 3 and y < self.grid_size[1] - 1 and self.grid_map[x, y + 1] == 0:
+        #     y += 1  # 向右移动
 
-        self.cur = np.array([x, y])
-        done = (x, y) == self.end
+        # self.cur = np.array([x, y])
+        # done = (x, y) == self.end
 
-        # 奖励：到达终点为1，否则根据距离给负奖励
-        distance_to_goal = np.linalg.norm(np.array([x, y]) - np.array(self.end))
-        reward = ARRIVE_REWARD if done else DISTANCE_C * distance_to_goal+STEP_REWARD
+        next_x, next_y = self.cur
+        if action == 0:
+            next_x -= 1
+        elif action == 1:
+            next_x += 1
+        elif action == 2:
+            next_y -= 1
+        elif action == 3:
+            next_y += 1
+
+        if next_x < 0 or next_x >= self.grid_size[0] or next_y < 0 or next_y >= self.grid_size[1]:
+            reward = -10
+            done = False
+        elif self.grid_map[next_x, next_y] != 0:
+            reward = -10
+            done = False
+        else:
+            self.cur = np.array([next_x, next_y])
+            done = (next_x, next_y) == self.end
+
+            # 奖励：到达终点为1，否则根据距离给负奖励
+            distance_to_goal = np.linalg.norm(np.array([x, y]) - np.array(self.end))
+            reward = ARRIVE_REWARD if done else DISTANCE_C * distance_to_goal+STEP_REWARD
 
         actual_steps = np.linalg.norm(self.cur - np.array(self.start))
         info = actual_steps

@@ -166,7 +166,7 @@ class DQNAgent:
     def update_model(self, beta: float) -> torch.Tensor:
         """Update the model by gradient descent."""
         samples = self.memory.sample_batch(beta)
-        print(samples["rews"])
+        # print(samples["rews"])
         weights = torch.FloatTensor(samples["weights"].reshape(-1, 1)).to(self.device)
         indices = samples["indices"]
 
@@ -243,7 +243,7 @@ class DQNAgent:
 
                 if done:
                     # 重新开始
-                    print(f"Map {map_index} - Episode {path.length()} Path: {path}")
+                    print(f"Map {map_index} - Episode {len(path)} Path: {path}")
                     # state, mask = self.env.restart()
                     state = self.env.restart()
                     path = [self.env.cur]
@@ -285,7 +285,8 @@ class DQNAgent:
 
         while not done:
             action = self.select_action(state)
-            next_state, mask, reward, done, info = self.step(action)
+            # next_state, mask, reward, done, info = self.step(action)
+            next_state, reward, done, info = self.step(action)
 
             state = next_state
             score += reward

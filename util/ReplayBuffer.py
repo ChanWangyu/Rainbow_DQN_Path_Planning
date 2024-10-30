@@ -17,7 +17,7 @@ class ReplayBuffer:
             gamma: float = 0.99
     ):
         self.obs_buf = np.zeros([size, obs_dim[0], obs_dim[1]], dtype=np.float32)
-        self.mask_buf = np.zeros([size, action_dim], dtype=np.float32)
+        # self.mask_buf = np.zeros([size, action_dim], dtype=np.float32)
         self.next_obs_buf = np.zeros([size, obs_dim[0], obs_dim[1]], dtype=np.float32)
         self.acts_buf = np.zeros([size], dtype=np.float32)
         self.rew_buf = np.zeros([size], dtype=np.float32)
@@ -34,13 +34,14 @@ class ReplayBuffer:
     def store(
             self,
             obs: np.ndarray,
-            mask: np.ndarray,
+            # mask: np.ndarray,
             act: int,
             rew: float,
             next_obs: np.ndarray,
             done: bool,
     ) -> Tuple[np.ndarray, np.ndarray, float, np.ndarray, bool]:
-        transition = (obs, mask, act, rew, next_obs, done)
+        # transition = (obs, mask, act, rew, next_obs, done)
+        transition = (obs, act, rew, next_obs, done)
         self.n_step_buffer.append(transition)
 
         # single step transition is not ready
@@ -51,10 +52,11 @@ class ReplayBuffer:
         rew, next_obs, done = self._get_n_step_info(
             self.n_step_buffer, self.gamma
         )
-        obs, mask, act = self.n_step_buffer[0][:3]
+        # obs, mask, act = self.n_step_buffer[0][:3]
+        obs, act = self.n_step_buffer[0][:2]
 
         self.obs_buf[self.ptr] = obs
-        self.mask_buf[self.ptr] = mask
+        # self.mask_buf[self.ptr] = mask
         self.next_obs_buf[self.ptr] = next_obs
         self.acts_buf[self.ptr] = act
         self.rew_buf[self.ptr] = rew
@@ -69,7 +71,7 @@ class ReplayBuffer:
 
         return dict(
             obs=self.obs_buf[idxs],
-            mask=self.mask_buf[idxs],
+            # mask=self.mask_buf[idxs],
             next_obs=self.next_obs_buf[idxs],
             acts=self.acts_buf[idxs],
             rews=self.rew_buf[idxs],
@@ -84,7 +86,7 @@ class ReplayBuffer:
         # for N-step Learning
         return dict(
             obs=self.obs_buf[idxs],
-            mask=self.mask_buf[idxs],
+            # mask=self.mask_buf[idxs],
             next_obs=self.next_obs_buf[idxs],
             acts=self.acts_buf[idxs],
             rews=self.rew_buf[idxs],
@@ -152,14 +154,15 @@ class PrioritizedReplayBuffer(ReplayBuffer):
     def store(
             self,
             obs: np.ndarray,
-            mask: np.ndarray,
+            # mask: np.ndarray,
             act: int,
             rew: float,
             next_obs: np.ndarray,
             done: bool,
     ) -> Tuple[np.ndarray, np.ndarray, float, np.ndarray, bool]:
         """Store experience and priority."""
-        transition = super().store(obs, mask, act, rew, next_obs, done)
+        # transition = super().store(obs, mask, act, rew, next_obs, done)
+        transition = super().store(obs, act, rew, next_obs, done)
 
         if transition:
             self.sum_tree[self.tree_ptr] = self.max_priority ** self.alpha
@@ -176,7 +179,7 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         indices = self._sample_proportional()
 
         obs = self.obs_buf[indices]
-        mask = self.mask_buf[indices]
+        # mask = self.mask_buf[indices]
         next_obs = self.next_obs_buf[indices]
         acts = self.acts_buf[indices]
         rews = self.rew_buf[indices]
@@ -185,7 +188,7 @@ class PrioritizedReplayBuffer(ReplayBuffer):
 
         return dict(
             obs=obs,
-            mask = mask,
+            # mask = mask,
             next_obs=next_obs,
             acts=acts,
             rews=rews,
