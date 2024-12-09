@@ -1,21 +1,20 @@
-from typing import Dict, List, Any, Tuple
+from typing import Deque, Dict, List, Tuple
+import gym
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.optim as optim
-# from IPython.display import clear_output
+from IPython.display import clear_output
 from torch.nn.utils import clip_grad_norm_
-from typer.cli import state
-from util.ReplayBuffer import ReplayBuffer, PrioritizedReplayBuffer
-from util.RainbowNet import CNNNetwork
-# from envs.roadmap_env.MultiAgentRoadmapEnv import MultiAgentRoadmapEnv
-from util.env import GridmapEnv
+from Agent.deepRL.ReplayBuffer import ReplayBuffer, PrioritizedReplayBuffer
+from Agent.deepRL.RainbowNet import Network, NoisyLinear
+from envs.roadmap_env.MultiAgentRoadmapEnv import MultiAgentRoadmapEnv
 
 class DQNAgent:
     """DQN Agent interacting with environment.
 
     Attribute:
-        env (util.env): env of grid path planning
+        env (gym.Env): openAI Gym environment
         memory (PrioritizedReplayBuffer): replay memory to store transitions
         batch_size (int): batch size for sampling
         target_update (int): period for target model's hard update
@@ -36,7 +35,7 @@ class DQNAgent:
 
     def __init__(
             self,
-            env: GridmapEnv,
+            env: MultiAgentRoadmapEnv,
             memory_size: int,
             batch_size: int,
             target_update: int,
@@ -53,16 +52,34 @@ class DQNAgent:
             # N-step Learning
             n_step: int = 3,
     ):
-        obs_dim = env.grid_size
-        action_dim = len(env.action_space)
+        """Initialization.
+
+        Args:
+            env (gym.Env): openAI Gym environment
+            memory_size (int): length of memory
+            batch_size (int): batch size for sampling
+            target_update (int): period for target model's hard update
+            lr (float): learning rate
+            gamma (float): discount factor
+            alpha (float): determines how much prioritization is used
+            beta (float): determines how much importance sampling is used
+            prior_eps (float): guarantees every transition can be sampled
+            v_min (float): min value of support
+            v_max (float): max value of support
+            atom_size (int): the unit number of support
+            n_step (int): step number to calculate n-step td error
+        """
+        obs_dim = env.obs_dim
+        action_dim = env.car_action_space.n
 
         self.env = env
         self.batch_size = batch_size
         self.target_update = target_update
         self.seed = seed
         self.gamma = gamma
-        # 使用Noisy_net意味着不需要使用Epsilon动作选择
+        # NoisyNet: All attributes related to epsilon are removed
 
+        # device: cpu / gpu
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
         )
@@ -73,7 +90,7 @@ class DQNAgent:
         self.beta = beta
         self.prior_eps = prior_eps
         self.memory = PrioritizedReplayBuffer(
-            obs_dim, action_dim, memory_size, batch_size, alpha=alpha, gamma=gamma
+            obs_dim, memory_size, batch_size, alpha=alpha, gamma=gamma
         )
 
         # memory for N-step Learning
@@ -81,24 +98,23 @@ class DQNAgent:
         if self.use_n_step:
             self.n_step = n_step
             self.memory_n = ReplayBuffer(
-                obs_dim, action_dim, memory_size, batch_size, n_step=n_step, gamma=gamma
+                obs_dim, memory_size, batch_size, n_step=n_step, gamma=gamma
             )
 
         # Categorical DQN parameters
         self.v_min = v_min
         self.v_max = v_max
-        # v_min和v_max的意义：概率密度函数的横坐标取值
         self.atom_size = atom_size
         self.support = torch.linspace(
             self.v_min, self.v_max, self.atom_size
         ).to(self.device)
 
         # networks: dqn, dqn_target
-        self.dqn = CNNNetwork(
-            obs_dim[0], action_dim, self.atom_size, self.support
+        self.dqn = Network(
+            obs_dim, action_dim, self.atom_size, self.support
         ).to(self.device)
-        self.dqn_target = CNNNetwork(
-            obs_dim[0], action_dim, self.atom_size, self.support
+        self.dqn_target = Network(
+            obs_dim, action_dim, self.atom_size, self.support
         ).to(self.device)
         self.dqn_target.load_state_dict(self.dqn.state_dict())
         self.dqn_target.eval()
@@ -112,44 +128,28 @@ class DQNAgent:
         # mode: train / test
         self.is_test = False
 
-        self.bad_actions = set()
-        self.visited_states = set()
-
-    def select_action(self, state: np.ndarray, mask = None) -> np.ndarray:
+    def select_action(self, state: np.ndarray, mask) -> np.ndarray:
         """Select an action from the input state."""
         # NoisyNet: no epsilon greedy action selection
-        # todo:如果仅仅通过mask来避免动作的话，缺少对网络的惩罚
-        q_value = self.dqn(torch.FloatTensor(state).to(self.device).unsqueeze(0).unsqueeze(0))
-        # q_value = q_value * torch.tensor(mask).to(self.device)
-
-        for bad_action in self.bad_actions:
-            q_value[0, bad_action] = float('-inf')
-
+        q_value = self.dqn(torch.FloatTensor(state).to(self.device)) * torch.tensor(mask).to(self.device)
+        # q_value[q_value == 0] = torch.finfo(torch.float).min
+        # print(q_value)
         selected_action = q_value.argmax()
         selected_action = selected_action.detach().cpu().numpy()
 
         if not self.is_test:
-            # self.transition = [state, mask, selected_action]
-            self.transition = [state, selected_action]
-
+            self.transition = [state, mask, selected_action]
+        # print(selected_action)
         return selected_action
 
-    def step(self, action: np.ndarray) -> tuple[Any, Any, Any, Any]:
+    def step(self, action: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.float64, bool, np.float32]:
         """Take an action and return the response of the env."""
-        # next_state, mask, reward, done, info = self.env.step(action)
-        next_state, reward, done, info = self.env.step(action)
-
-        state_tuple = tuple(next_state.flatten())
-
-        if state_tuple in self.visited_states:
-            reward -= 10
-            self.bad_actions.add(action.item())
-        else:
-            self.bad_actions.clear()
-            self.visited_states.add(state_tuple)
+        next_state, mask, reward, terminated, info = self.env.step(action)
+        done = terminated
 
         if not self.is_test:
             self.transition += [reward, next_state, done]
+
             # N-step transition
             if self.use_n_step:
                 one_step_transition = self.memory_n.store(*self.transition)
@@ -161,14 +161,15 @@ class DQNAgent:
             if one_step_transition:
                 self.memory.store(*one_step_transition)
 
-        # return mask, next_state, reward, done, info
-        return next_state, reward, done, info
+        return mask, next_state, reward, done, info
 
-    def update_model(self, beta: float) -> torch.Tensor:
+    def update_model(self) -> torch.Tensor:
         """Update the model by gradient descent."""
-        samples = self.memory.sample_batch(beta)
-        print(samples["rews"])
-        weights = torch.FloatTensor(samples["weights"].reshape(-1, 1)).to(self.device)
+        # PER needs beta to calculate weights
+        samples = self.memory.sample_batch(self.beta)
+        weights = torch.FloatTensor(
+            samples["weights"].reshape(-1, 1)
+        ).to(self.device)
         indices = samples["indices"]
 
         # 1-step Learning loss
@@ -178,8 +179,8 @@ class DQNAgent:
         loss = torch.mean(elementwise_loss * weights)
 
         # N-step Learning loss
-        # We are going to combine 1-step loss and n-step loss so as to prevent high-variance.
-        # The original rainbow employs n-step loss only.
+        # we are gonna combine 1-step loss and n-step loss so as to
+        # prevent high-variance. The original rainbow employs n-step loss only.
         if self.use_n_step:
             gamma = self.gamma ** self.n_step
             samples = self.memory_n.sample_batch_from_idxs(indices)
@@ -191,88 +192,68 @@ class DQNAgent:
 
         self.optimizer.zero_grad()
         loss.backward()
-        # 梯度裁剪防止梯度爆炸
         clip_grad_norm_(self.dqn.parameters(), 10.0)
         self.optimizer.step()
 
+        # PER: update priorities
         loss_for_prior = elementwise_loss.detach().cpu().numpy()
         new_priorities = loss_for_prior + self.prior_eps
-        self.memory.update_priorities(list(indices), new_priorities)
+        self.memory.update_priorities(indices, new_priorities)
 
+        # NoisyNet: reset noise
         self.dqn.reset_noise()
         self.dqn_target.reset_noise()
 
-        return loss
+        return loss.item()
 
-    def train(self,
-              num_map: int,
-              num_episode: int,
-              showing_interval: int = 2000):
+    def train(self, num_episode: int, plotting_interval: int = 2000):
         """Train the agent."""
         self.is_test = False
 
+        state, mask = self.env.reset()
         update_cnt = 0
         losses = []
         scores = []
-        # info_list = []
+        info_list = []
         score = 0
-        # info_total = 0
+        info_total = 0
+        for episode_idx in range(1, num_episode + 1):
+            action = self.select_action(state, mask)
+            next_mask, next_state, reward, done, info = self.step(action)
 
-        for map_index in range(num_map):
-            beta = self.beta
-            arrive_time = 0
-            # state, mask = self.env.reset()
-            state = self.env.reset()
-            print(state)
-            loss = 0
-            path = [self.env.cur]
-            self.visited_states.clear()
+            state = next_state
+            mask = next_mask
+            score += reward
+            info_total += info
+            # NoisyNet: removed decrease of epsilon
 
-            for episode_idx in range(1, num_episode + 1):
-                # action = self.select_action(state, mask)
-                action = self.select_action(state)
-                # next_mask, next_state, reward, done, info = self.step(action)
-                next_state, reward, done, info = self.step(action)
+            # PER: increase beta
+            fraction = min(episode_idx / num_episode, 1.0)
+            self.beta = self.beta + fraction * (1.0 - self.beta)
 
-                state = next_state
-                # mask = next_mask
-                score += reward
-                # info_total += info
-                path.append(self.env.cur)
+            # if episode ends
+            if done:
+                state, mask = self.env.reset()
+                scores.append(score)
+                score = 0
+                info_list.append(info_total)
+                info_total = 0
 
-                fraction = min(episode_idx / num_episode, 1.0)
-                beta = beta + fraction * (1.0 - beta)
+            # if training is ready
+            if len(self.memory) >= self.batch_size:
+                loss = self.update_model()
+                losses.append(loss)
+                update_cnt += 1
 
-                if done:
-                    # 重新开始
-                    print(f"Map {map_index} - Episode {len(path)} Path: {path}")
-                    # state, mask = self.env.restart()
-                    state = self.env.restart()
-                    self.visited_states.clear()
-                    path = [self.env.cur]
-                    scores.append(score)
-                    score = 0
-                    arrive_time += 1
-                    # info_list.append(info_total)
-                    # info_total = 0
+                # if hard update is needed
+                if update_cnt % self.target_update == 0:
+                    self._target_hard_update()
 
-                if self.memory.size >= self.batch_size:
-                    loss = self.update_model(beta).item()
-                    losses.append(loss)
-                    update_cnt += 1
+            # plotting
+            if episode_idx % plotting_interval == 0:
+                self._plot(episode_idx, scores, losses, info_list)
 
-                    # if hard update is needed
-                    if update_cnt % self.target_update == 0:
-                        self._target_hard_update()
-
-                # 训练效果的展示
-                if episode_idx % showing_interval == 0:
-                    # self._plot(episode_idx, scores, losses, info_list)
-                    self._print_and_show(map_index, episode_idx, arrive_time, score, loss)
-
-            if arrive_time == 0:
-                truncated_path = path[:200]
-                print(f"Map {map_index} - Final Path after {num_episode} episodes (first 200 steps): {truncated_path}")
+        self.env.close()
 
     def test(self, video_folder: str) -> None:
         """Test the agent."""
@@ -282,19 +263,19 @@ class DQNAgent:
         naive_env = self.env
         # self.env = gym.wrappers.RecordVideo(self.env, video_folder=video_folder)
 
-        state, _ = self.env.reset()
+        state, _ = self.env.reset(0)
         done = False
         score = 0
 
         while not done:
             action = self.select_action(state)
-            # next_state, mask, reward, done, info = self.step(action)
-            next_state, reward, done, info = self.step(action)
+            next_state, reward, done = self.step(action)
 
             state = next_state
             score += reward
 
         print("score: ", score)
+        self.env.close()
 
         # reset
         self.env = naive_env
@@ -313,8 +294,8 @@ class DQNAgent:
 
         with torch.no_grad():
             # Double DQN
-            next_action = self.dqn(next_state.unsqueeze(1)).argmax(1)
-            next_dist = self.dqn_target.dist(next_state.unsqueeze(1))
+            next_action = self.dqn(next_state).argmax(1)
+            next_dist = self.dqn_target.dist(next_state)
             next_dist = next_dist[range(self.batch_size), next_action]
 
             t_z = reward + (1 - done) * gamma * self.support
@@ -340,13 +321,13 @@ class DQNAgent:
                 0, (u + offset).view(-1), (next_dist * (b - l.float())).view(-1)
             )
 
-        dist = self.dqn.dist(state.unsqueeze(1))
+        dist = self.dqn.dist(state)
         log_p = torch.log(dist[range(self.batch_size), action])
         elementwise_loss = -(proj_dist * log_p).sum(1)
 
         return elementwise_loss
 
-    def _target_hard_update(self) -> None:
+    def _target_hard_update(self):
         """Hard update: target <- local."""
         self.dqn_target.load_state_dict(self.dqn.state_dict())
 
@@ -356,9 +337,9 @@ class DQNAgent:
             scores: List[float],
             losses: List[float],
             info_list: List[float],
-    ) -> None:
+    ):
         """Plot the training progresses."""
-        # clear_output(True)
+        clear_output(True)
         plt.figure(figsize=(20, 5))
         plt.subplot(131)
         plt.title('frame %s. score: %s' % (frame_idx, np.mean(scores[-10:])))
@@ -370,19 +351,3 @@ class DQNAgent:
         plt.title('info_list')
         plt.plot(info_list)
         plt.show()
-
-    def _print_and_show(self,
-                        map_index: int,
-                        episode_idx: int,
-                        arrive_times: int,
-                        score: int,
-                        loss: int) -> None:
-        """Print and show the training progresses."""
-        print('----------------------------------------------')
-        print(f'Map: {map_index}')
-        print(f'Episode: {episode_idx}')
-        print(f'Arrive times: {arrive_times}')
-        print(f'Score: {score}')
-        print(f'Loss: {loss}')
-        print('----------------------------------------------')
-
